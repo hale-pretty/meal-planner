@@ -1,0 +1,16 @@
+# Build output and local dependencies
+**/.gradle/
+**/build/
+**/node_modules/
+**/dist/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Editor and operating system files
+.idea/
+*.iml
+.DS_Store
+

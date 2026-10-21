@@ -2,7 +2,7 @@
 
 ## Purpose and Status
 
-This document describes the proposed architecture for the [requirements](REQUIREMENTS.md). The application has not been implemented in this clean repository. Follow the [development plan](DEVELOPMENT_PLAN.md) one task at a time.
+This document describes the target architecture for the [requirements](REQUIREMENTS.md). The [development plan](DEVELOPMENT_PLAN.md) records which increments are implemented and verified. Follow it one task at a time.
 
 The first version serves anonymous visitors in Ireland. It suggests one meal at a time, supports American, Irish, and Vietnamese cuisine, and connects recipe ingredients to curated retailer products. Build the sample experience first, then introduce live AI through the same business flow.
 
@@ -36,7 +36,7 @@ The browser never connects to PostgreSQL or the AI provider directly. Opening a 
 | Styling and navigation | Tailwind CSS, React Router | Responsive layout and page transitions |
 | Server response state | TanStack Query | Loading, errors, and API response caching |
 | Interactive state | React state | Selected recipe, servings, and checklist changes |
-| Business API | Java 21, Spring Boot, Maven | Validation and coordination of application services |
+| Business API | Java 21, Spring Boot, Gradle | Validation and coordination of application services |
 | Persistence | Spring Data JPA, PostgreSQL | Curated ingredients, samples, products, and mappings |
 | Database changes | Flyway | Versioned schema and seed-data migrations |
 | Live suggestions | Spring RestClient, OpenAI Responses API | Backend-only structured recipe generation |

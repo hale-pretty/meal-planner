@@ -29,10 +29,11 @@ Task statuses are **Planned → In progress → Ready for review → Committed**
 
 | Tasks | Status | Notes |
 | --- | --- | --- |
-| T00 | Ready for review | Requirements copied unchanged; document links, structure, task completeness, and MVP coverage checked; no commit made |
-| T01–T16 | Planned | No application implementation has begun |
+| T00 | Committed | Approved by the user; documentation committed as `b38576b` |
+| T01 | In progress | Backend migrated to Gradle; wrapper bootstrap and static checks passed; application verification blocked by environment restrictions and missing JDK 21; uncommitted |
+| T02–T16 | Planned | Implementation has not begun |
 
-The repository was cloned empty and has no initial commit. T00 is the proposed documentation-only first commit after review. Application directories, dependencies, runtime setup, and configuration belong to subsequent tasks.
+The repository was cloned empty. T00 is now committed, and T01 is the active task. Each subsequent task still requires its own plan, implementation, tests, and review.
 
 ## Phase 0 — Agree on the Project
 
@@ -51,10 +52,29 @@ The repository was cloned empty and has no initial commit. T00 is the proposed d
 ### T01 — Set up the Spring Boot backend
 
 - **Depends on:** T00.
-- **Objective and changes:** verify the Java/Maven environment; create a Java 21 Spring Boot application, Maven Wrapper, basic health endpoint, test setup, and backend run instructions. Add relevant ignore rules without committing credentials.
+- **Objective and changes:** verify the Java/Gradle environment; create a Java 21 Spring Boot application, Gradle Wrapper, basic health endpoint, test setup, and backend run instructions. Add relevant ignore rules without committing credentials.
 - **Acceptance checks:** the application starts without a database or AI key; the health endpoint responds; the wrapper runs a basic automated test. Record exact compatible dependency versions.
 - **Learn:** application startup, dependency management, HTTP controllers, and the difference between a unit test and an application test.
 - **Suggested commit:** `Set up Spring Boot backend with health endpoint`.
+
+#### T01 Implementation and Verification Record
+
+The source includes a Java 21 application, `GET /api/v1/health` returning `{"status":"UP"}`, an explicit response record, and an integration test that starts a real HTTP server on a random port. At the user's request, the build now uses Gradle's Groovy DSL and wrapper. Tooling is pinned to Spring Boot 3.5.16 and Gradle 8.14.3. See the [backend guide](backend/README.md) for the walkthrough and commands.
+
+| Check | Result |
+| --- | --- |
+| Gradle build/settings syntax, Java target, dependency declarations, wrapper configuration, and executable permissions | Passed static checks; Groovy parsing does not verify plugin resolution or project configuration |
+| `sh -n backend/gradlew` | Passed shell syntax check |
+| Wrapper JAR SHA-256 and pinned distribution checksum | Matched Gradle's published reference |
+| Wrapper `--version` with a cached distribution and isolated writable cache | Passed: Gradle 8.14.3 |
+| Java source/test syntax parsing | Passed for all four Java files; not full compilation |
+| `git diff --check` and new source whitespace checks | Passed |
+| Gradle Wrapper `clean build` with an isolated cache and offline resolution | Blocked before project configuration: local file-lock communication socket creation returned `Operation not permitted` |
+| JUnit integration test and application startup | Not run; JDK 21 and dependency access are required |
+| Manual HTTP health request | Not run; application could not yet be started |
+| Windows wrapper | Included from upstream; not executed on Windows |
+
+The agent environment exposes Java 17.0.9 and restricts dependency-download access and local sockets. Gradle 8.14.3 was available in the user's existing cache. The wrapper check reused that distribution through an isolated writable cache with native services disabled; the application build still could not start. No environment-specific Gradle workaround was added to project configuration. Resolve the environment requirements, run `./gradlew clean build` from `backend/`, start the application with `./gradlew bootRun`, and verify the endpoint before marking T01 ready for review. T01 has not been committed.
 
 ### T02 — Set up React/Vite and connect to the backend
 

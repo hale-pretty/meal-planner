@@ -97,7 +97,7 @@ The developer verifies product pages, records ingredient mappings and pack detai
 | Frontend | React, TypeScript, Vite | Preferences, suggestions, recipes, checklist |
 | UI | Tailwind CSS, React Router | Responsive styling and navigation |
 | Server state | TanStack Query | API requests, loading, and error states |
-| Backend | Java 21, Spring Boot, Maven | Validation, AI orchestration, product matching |
+| Backend | Java 21, Spring Boot, Gradle | Validation, AI orchestration, product matching |
 | Persistence | PostgreSQL, Spring Data JPA | Ingredient and retailer catalog |
 | Migrations | Flyway | Repeatable schema and catalog changes |
 | AI | OpenAI Responses API via Spring RestClient | Structured meal generation |
