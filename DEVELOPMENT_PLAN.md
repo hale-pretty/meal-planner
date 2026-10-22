@@ -30,10 +30,11 @@ Task statuses are **Planned → In progress → Ready for review → Committed**
 | Tasks | Status | Notes |
 | --- | --- | --- |
 | T00 | Committed | Approved by the user; documentation committed as `b38576b` |
-| T01 | In progress | Backend migrated to Gradle; wrapper bootstrap and static checks passed; application verification blocked by environment restrictions and missing JDK 21; uncommitted |
-| T02–T16 | Planned | Implementation has not begun |
+| T01 | Committed | Backend committed as `3558ce3`; existing health integration-test report records one passing test |
+| T02 | Ready for review | React/Vite foundation implemented; 16 component tests, build, lint, and real browser connection/recovery checks passed; uncommitted |
+| T03–T16 | Planned | Implementation has not begun |
 
-The repository was cloned empty. T00 is now committed, and T01 is the active task. Each subsequent task still requires its own plan, implementation, tests, and review.
+T00 and T01 are committed. T02 is implemented and awaiting user review; T03 has not begun. Each subsequent task still requires its own plan, implementation, tests, and review.
 
 ## Phase 0 — Agree on the Project
 
@@ -61,6 +62,8 @@ The repository was cloned empty. T00 is now committed, and T01 is the active tas
 
 The source includes a Java 21 application, `GET /api/v1/health` returning `{"status":"UP"}`, an explicit response record, and an integration test that starts a real HTTP server on a random port. At the user's request, the build now uses Gradle's Groovy DSL and wrapper. Tooling is pinned to Spring Boot 3.5.16 and Gradle 8.14.3. See the [backend guide](backend/README.md) for the walkthrough and commands.
 
+The following table preserves the earlier agent-side verification attempts; blocked checks are infrastructure results, not test failures. Later evidence is recorded separately below.
+
 | Check | Result |
 | --- | --- |
 | Gradle build/settings syntax, Java target, dependency declarations, wrapper configuration, and executable permissions | Passed static checks; Groovy parsing does not verify plugin resolution or project configuration |
@@ -74,7 +77,9 @@ The source includes a Java 21 application, `GET /api/v1/health` returning `{"sta
 | Manual HTTP health request | Not run; application could not yet be started |
 | Windows wrapper | Included from upstream; not executed on Windows |
 
-The agent environment exposes Java 17.0.9 and restricts dependency-download access and local sockets. Gradle 8.14.3 was available in the user's existing cache. The wrapper check reused that distribution through an isolated writable cache with native services disabled; the application build still could not start. No environment-specific Gradle workaround was added to project configuration. Resolve the environment requirements, run `./gradlew clean build` from `backend/`, start the application with `./gradlew bootRun`, and verify the endpoint before marking T01 ready for review. T01 has not been committed.
+During those earlier attempts, the agent shell exposed Java 17.0.9 and restricted downloads and sockets. Gradle 8.14.3 was available in the user's cache, but the isolated build could not start. No environment-specific workaround was added to project configuration.
+
+T01 was subsequently committed as `3558ce3` (`set up backend`). The existing report at `backend/build/test-results/test/TEST-ie.mealplanner.health.HealthEndpointTest.xml`, timestamped `2026-10-21T22:30:23.053Z`, records **1 test, 0 failures, 0 errors, and 0 skipped**, using Java 21.0.12.1. This report is later evidence; it is not a rerun of the earlier blocked checks or proof of a fresh `clean build`. During T02 verification, the installed JDK 21 was selected explicitly, Spring Boot started with `./gradlew bootRun`, and the real health endpoint returned HTTP 200 with `{"status":"UP"}` through Vite.
 
 ### T02 — Set up React/Vite and connect to the backend
 
@@ -83,6 +88,25 @@ The agent environment exposes Java 17.0.9 and restricts dependency-download acce
 - **Acceptance checks:** the frontend starts and builds; a component test passes; the browser shows backend health and a useful error when it is unavailable. Retain the dependency lockfile.
 - **Learn:** frontend tooling, components, API calls, and development proxies.
 - **Suggested commit:** `Set up React frontend and backend connection`.
+
+#### T02 Implementation and Verification Record
+
+Implemented the official Vite React TypeScript template in `frontend/`, strict TypeScript checking, npm lockfile and Node >=22.12 requirement, Tailwind's Vite plugin, and a development proxy from port 5173 to Spring Boot on port 8080. The connection card uses native `fetch` with response validation, a five-second timeout, cancellation, accessible status announcements, and retry. No meal-planning features or backend CORS changes were added. TanStack Query remains planned for T05.
+
+See the [frontend guide](frontend/README.md) for installed dependency versions, commands, and steps to inspect the app on localhost.
+
+| Check | Result |
+| --- | --- |
+| Tooling and dependency installation | Passed with temporary Node 22.23.4 and npm 10.9.9; retained `package-lock.json`; npm reported zero known vulnerabilities at installation time |
+| `npm test` | Passed: 16 component tests covering loading, success, failures, response validation, timeout, retry, stale responses, and cleanup |
+| `npm run build` | Passed strict TypeScript checking and production asset generation |
+| `npm run lint` | Passed |
+| Real Chrome → Vite → Spring Boot | Passed with JDK 21: HTTP 200 and `status: UP`, visible connected state |
+| Backend shutdown, restart, and browser retry | Passed: useful error while unavailable, then connected after restart and retry |
+| Responsive browser inspection | Passed at 375px: no horizontal overflow, retry focusable, no browser runtime errors observed |
+| User visual and keyboard review | Localhost steps documented for review; screenshot comparisons are not required |
+
+These checks ran on 22 October 2026 with approved execution outside the read-only sandbox. The default shell lacked Node and selected Java 17; temporary Node tooling and an existing JDK 21 enabled verification. No dependency-download blocker remains for this verification run. The full backend `clean build` was not rerun. Browser checks used temporary tooling outside the repository; no screenshot testing suite was added. Production API hosting remains T16. T02 changes are uncommitted and ready for user review; do not begin T03 automatically.
 
 ### T03 — Introduce PostgreSQL and catalog persistence
 
