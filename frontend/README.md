@@ -24,7 +24,7 @@ Use npm and keep `package-lock.json` in version control. Dependency installation
 
 ## Run Both Applications Locally
 
-Use two terminals. Start each from the repository root.
+First start Docker and PostgreSQL using the [backend database setup](../backend/README.md#start-postgresql), including the private root `.env` file. Then use two terminals, starting each from the repository root.
 
 **Terminal 1 — backend:**
 
@@ -44,7 +44,7 @@ npm run dev
 
 Open **http://localhost:5173** in your browser. Keep both terminals running while checking the connection. Vite requires port 5173 to be free and exits with an error if it is occupied. Stop a server with Ctrl+C in its terminal.
 
-No database or AI key is needed for this increment.
+PostgreSQL is required from T03 onward. No AI key is needed. Keep database passwords in the backend environment; never add secrets to frontend files or `VITE_` variables.
 
 ## Check the Page in Your Browser
 
@@ -56,7 +56,7 @@ No database or AI key is needed for this increment.
 
 Requests time out after five seconds. Connection status uses text as well as color and is announced through a polite live region. You can inspect the layout directly on localhost; screenshots are not required.
 
-If a check fails, confirm that Spring Boot is running on port 8080. You can also open `http://localhost:5173/api/v1/health`; through the proxy, it should return `{"status":"UP"}`.
+If a check fails, confirm that PostgreSQL is healthy and Spring Boot is running on port 8080. You can also open `http://localhost:5173/api/v1/health`; through the proxy, it should return `{"status":"UP"}`.
 
 ## Automated Checks
 

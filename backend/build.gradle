@@ -21,7 +21,14 @@ dependencies {
     implementation platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.flywaydb:flyway-core'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    runtimeOnly 'org.postgresql:postgresql'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -31,4 +38,53 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+// Local development only: read data, never execute .env as a shell script.
+tasks.named('bootRun') {
+    doFirst {
+        def localSettings = [:]
+        def envFile = rootProject.file('../.env')
+        def allowedKeys = ['APP_DB_PASSWORD', 'DATABASE_URL', 'POSTGRES_DB', 'POSTGRES_PORT']
+        if (envFile.isFile()) {
+            envFile.eachLine('UTF-8') { line ->
+                def entry = line.trim()
+                if (entry.startsWith('export ')) {
+                    entry = entry.substring(7).trim()
+                }
+                def separator = entry.indexOf('=')
+                if (!entry.startsWith('#') && separator > 0) {
+                    def key = entry.substring(0, separator).trim()
+                    if (allowedKeys.contains(key)) {
+                        def value = entry.substring(separator + 1).trim()
+                        if (value.length() >= 2 &&
+                                ((value.startsWith('"') && value.endsWith('"')) ||
+                                 (value.startsWith("'") && value.endsWith("'")))) {
+                            value = value.substring(1, value.length() - 1)
+                        }
+                        localSettings[key] = value
+                    }
+                }
+            }
+        }
+        // Explicit environment variables take precedence over the local file.
+        def setting = { key, fallback ->
+            System.getenv(key) ?: localSettings[key] ?: fallback
+        }
+        def password = setting('APP_DB_PASSWORD', null)
+        if (!password) {
+            throw new GradleException('Set APP_DB_PASSWORD in the root .env file or backend environment; see backend/README.md.')
+        }
+        environment 'APP_DB_PASSWORD', password
+        def databaseUrl = setting('DATABASE_URL', null)
+        if (!databaseUrl) {
+            def port = setting('POSTGRES_PORT', '5432')
+            def database = setting('POSTGRES_DB', 'meal_planner')
+            databaseUrl = "jdbc:postgresql://localhost:${port}/${database}"
+        }
+        environment 'DATABASE_URL', databaseUrl
+        // Do not pass bootstrap administrator credentials into the backend.
+        environment.remove('POSTGRES_PASSWORD')
+        environment.remove('POSTGRES_USER')
+    }
 }

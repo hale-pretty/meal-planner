@@ -25,16 +25,23 @@ Suggested prompts:
 
 Task statuses are **Planned → In progress → Ready for review → Committed**. Record blockers alongside the status. A task with required checks still blocked is not ready for review as a completed implementation; explain what remains and resolve or explicitly revise its acceptance criteria together.
 
+## Security Working Agreement
+
+Keep secrets in ignored backend environment configuration; `.env.example` contains placeholders only. Never hardcode, log, expose, or commit credentials, including in tests or documentation, and never put them in `VITE_` variables. Check changed/tracked files for accidental secrets before review and commit.
+
+Secret-bearing third-party calls remain backend-only. Validate future API inputs, protect sensitive endpoints, and bound live AI usage before enabling it. Treat model outputs and external content as untrusted data; validate tool arguments, restrict permissions and execution steps, and cap spending. Obtain explicit approval for purchases, payments, destructive actions, and security-configuration changes. Prefer maintained dependencies and proportionate checks without unnecessary packages.
+
 ## Current Progress
 
 | Tasks | Status | Notes |
 | --- | --- | --- |
 | T00 | Committed | Approved by the user; documentation committed as `b38576b` |
 | T01 | Committed | Backend committed as `3558ce3`; existing health integration-test report records one passing test |
-| T02 | Ready for review | React/Vite foundation implemented; 16 component tests, build, lint, and real browser connection/recovery checks passed; uncommitted |
-| T03–T16 | Planned | Implementation has not begun |
+| T02 | Committed | Frontend committed as `06df3f1`; 16 component tests and build passed again during T03 |
+| T03 | Ready for review | PostgreSQL catalog and single-account simplification implemented; 27 backend tests and build passed; existing database upgraded without data loss; uncommitted |
+| T04–T16 | Planned | Implementation has not begun |
 
-T00 and T01 are committed. T02 is implemented and awaiting user review; T03 has not begun. Each subsequent task still requires its own plan, implementation, tests, and review.
+T00–T02 are committed. T03 is implemented and awaiting user review; T04 has not begun. Each subsequent task still requires its own plan, implementation, tests, and review.
 
 ## Phase 0 — Agree on the Project
 
@@ -106,7 +113,7 @@ See the [frontend guide](frontend/README.md) for installed dependency versions, 
 | Responsive browser inspection | Passed at 375px: no horizontal overflow, retry focusable, no browser runtime errors observed |
 | User visual and keyboard review | Localhost steps documented for review; screenshot comparisons are not required |
 
-These checks ran on 22 October 2026 with approved execution outside the read-only sandbox. The default shell lacked Node and selected Java 17; temporary Node tooling and an existing JDK 21 enabled verification. No dependency-download blocker remains for this verification run. The full backend `clean build` was not rerun. Browser checks used temporary tooling outside the repository; no screenshot testing suite was added. Production API hosting remains T16. T02 changes are uncommitted and ready for user review; do not begin T03 automatically.
+These checks ran on 22 October 2026 with approved execution outside the read-only sandbox. The default shell lacked Node and selected Java 17; temporary Node tooling and an existing JDK 21 enabled verification. No dependency-download blocker remains for this verification run. The full backend `clean build` was not rerun. Browser checks used temporary tooling outside the repository; no screenshot testing suite was added. Production API hosting remains T16. T02 was subsequently committed as `06df3f1` (`set up frontend`). The user separately authorized T03 after agreeing its scope.
 
 ### T03 — Introduce PostgreSQL and catalog persistence
 
@@ -115,6 +122,54 @@ These checks ran on 22 October 2026 with approved execution outside the read-onl
 - **Acceptance checks:** migrations apply to a fresh PostgreSQL database; keys and mappings are valid; repository integration tests run with Testcontainers; restarts preserve data. Configure the health/startup checks appropriately once persistence is required.
 - **Learn:** relational modeling, migrations, environment configuration, and integration testing.
 - **Suggested commit:** `Add PostgreSQL catalog persistence and migrations`.
+
+#### T03 Implementation and Verification Record
+
+Implemented database-only Compose with PostgreSQL 17.11, a named volume and localhost-only port, Flyway schema/seed migrations, five catalog models plus their repositories, and bounded database-aware health. The existing success contract remains HTTP 200 with `{"status":"UP"}`; a database outage now returns HTTP 503 with `{"status":"DOWN"}`. Hibernate validates the Flyway-managed schema; Open Session in View is disabled. Product lookup uses bound ingredient/retailer parameters and does not expose entities through HTTP.
+
+The agreed seed contains **20 ingredients, 10 aliases, 2 retailers, 12 real products, and 12 reviewed mappings**. Six ingredient types have a verified product at each retailer; fourteen identities remain unmapped. [Catalog sources and review decisions](backend/CATALOG.md) document retailer pages, dated verification, tomato juice quantities, and unknown fixed quantities for loose onions. Shared ingredients do not add French or Italian cuisine choices. The larger 40-ingredient/60-product target remains T14.
+
+Passwords have no committed defaults. Compose requires private configuration; the backend guide generates secrets directly into an ignored `.env` without printing them. The original implementation separated a read-only account and a migration owner; on 24 October the user requested the simpler single non-superuser backend account described below. Test credentials remain generated at runtime. No personal `.env` was created during verification.
+
+| Check | Result |
+| --- | --- |
+| JDK 21 / Gradle backend build | Passed; final `./gradlew build` executed the tests after the SQL-bootstrap change |
+| JUnit/Testcontainers | 25 passed, 0 failures/errors/skips: 23 catalog/constraint/permission cases, 1 real HTTP health case, 1 sanitized failure case |
+| Fresh PostgreSQL migrations and JPA validation | Passed against disposable PostgreSQL 17.11 and an isolated Compose database |
+| Seed integrity and repository lookup | Passed exact counts, distinct forms, aliases, reviewed relationships, optional retailer filtering, and unknown pack values |
+| Database constraints | Passed rejection of duplicates, missing references, missing required fields, unsafe URL schemes, and invalid pack quantity/unit pairs |
+| Original account checks (22 October) | Passed read-only enforcement; superseded by the user-approved single-account change below |
+| Migration rerun | Passed: no pending migrations or duplicate seed rows |
+| Real database outage/recovery | Passed: HTTP 503 `DOWN` in 1.01 seconds after stopping PostgreSQL, then HTTP 200 `UP` after restart without backend restart |
+| Named-volume persistence | Passed: a temporary test row survived container removal/recreation; after removing that fixture and restarting the app, counts remained 20/12/12 with two successful migrations |
+| Frontend `npm test` and `npm run build` | Passed: all 16 component tests, strict TypeScript checking, and production assets |
+| Frontend `npm audit` | Reported 0 known vulnerabilities for the installed dependency graph at check time |
+| Repository secret check | No tracked private `.env`/private-key paths or recognizable API-key/token/private-key/credential-in-URL patterns found; heuristic inspection, not a formal security audit |
+| Ignore rules | Confirmed root/backend/frontend `.env` variants are ignored; `.env.example` remains reviewable |
+| Dedicated backend dependency vulnerability scanner | Not run; dependencies remain managed by the existing Spring Boot BOM; no scanner service/package added |
+| Human localhost visual/keyboard review | Run steps documented; no screenshot testing required |
+
+Checks ran on 22 October 2026 with approved access outside the read-only sandbox. The first Compose check found a mounted-shell-script execution failure; initialization was changed to SQL, the backend tests reran, and fresh Compose startup and lifecycle checks then passed. Only isolated verification containers and volumes were removed with approval; the earlier draft database volume and personal configuration were preserved. The earlier draft PostgreSQL container was stopped with approval after verification, freeing port 5432 while preserving its volume. No data deletion or credential rotation was performed on that draft database.
+
+See the [backend guide](backend/README.md) and updated [frontend localhost guide](frontend/README.md) for setup and repeatable checks. There are no live AI calls, keys, paid actions, new cuisine choices, or public catalog endpoints in T03. T03 changes remain uncommitted for review. Suggested commit after review: `Add PostgreSQL catalog persistence and migrations`. Do not advance to T04 automatically.
+
+#### T03 Single-Account Simplification — 24 October 2026
+
+At the user's request, Flyway now uses the same datasource as normal queries: non-superuser `meal_planner_app` with `APP_DB_PASSWORD`. Fresh database initialization makes this account the application database owner. Backend startup instructions explicitly remove the Docker bootstrap administrator credentials from the process environment. The private root `.env` still contains the separate Docker bootstrap password for initial server setup; no personal secrets or passwords were read into tool output, changed, or committed.
+
+Applied V1/V2 migrations remain byte-for-byte unchanged. A separate, explicit ownership-upgrade SQL transaction supports existing local databases without deleting data, altering passwords, or repairing Flyway checksums. Only the current application database and its named catalog/history tables change owners. Unrelated tables are untouched. Single-account tests cover repository writes, constraints, schema changes, and the absence of superuser/role-creation/database-creation privileges. A dedicated legacy-database test verifies that existing rows, identity sequences, and Flyway history survive the change and migration validation still passes.
+
+Verification on 24 October: `./gradlew build` passed with **27 tests, 0 failures, 0 errors, and 0 skipped**. This includes a fresh single-account database and an upgrade from the original two-account schema. The existing local database ownership transfer was then applied with explicit approval. Before/after comparisons confirmed every row in all five catalog tables and Flyway history was unchanged; all six tables and the application database now belong to `meal_planner_app`. Its superuser, database-creation, role-creation, replication, and RLS-bypass flags are all disabled. Personal `.env`, passwords, volumes, and unrelated tables were not modified. `git diff --check` passed. Frontend application code was unchanged, so its previously passing tests were not repeated for this account-only change.
+
+Restart any already running backend using the updated README commands, which remove bootstrap administrator credentials before starting Gradle. The local database upgrade has already been completed; no reset or repeat upgrade is needed on this machine. Changes remain uncommitted; no T04 work is included.
+
+#### Local Startup Convenience — 24 October 2026
+
+At the user's request, new zsh terminals on this Mac now select the existing JDK 21 through a guarded `~/.zshrc` entry; the previous shell configuration was backed up outside the repository. No secrets are stored in shell startup files.
+
+`./gradlew bootRun` now reads only approved settings from the ignored root `.env`, passes the application password and derived/explicit database URL to Spring Boot, and excludes Docker administrator credentials even when they were exported beforehand. Literal values and optional matching quotes are supported; the file is never executed as shell code. Explicit environment settings take precedence. Tests/builds do not load the local file. README startup commands no longer require repeated exports or sourcing.
+
+Verification: a fresh login shell reported Java/compiler 21; the backend build passed with existing tests up-to-date. Temporary runtime probes passed local file loading, environment precedence, and administrator-credential exclusion. A real `bootRun` launched from a fresh shell with no manual database exports returned HTTP 200 `UP` against local PostgreSQL. Only that temporary verification backend was stopped. `.env`, passwords, database contents, and other servers were unchanged. `git diff --check` passed. No new dependency or committed machine-specific Java path was added.
 
 ### T04 — Define preference rules and the options API
 
