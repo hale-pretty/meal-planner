@@ -38,10 +38,11 @@ Secret-bearing third-party calls remain backend-only. Validate future API inputs
 | T00 | Committed | Approved by the user; documentation committed as `b38576b` |
 | T01 | Committed | Backend committed as `3558ce3`; existing health integration-test report records one passing test |
 | T02 | Committed | Frontend committed as `06df3f1`; 16 component tests and build passed again during T03 |
-| T03 | Ready for review | PostgreSQL catalog and single-account simplification implemented; 27 backend tests and build passed; existing database upgraded without data loss; uncommitted |
-| T04–T16 | Planned | Implementation has not begun |
+| T03 | Committed | `4c4c15e` — catalog persistence, single-account simplification, and local startup convenience; 27 backend tests passed |
+| T04 | Ready for review | Options API, reusable validation, and safe errors implemented; see verification record below; uncommitted |
+| T05–T16 | Planned | Implementation has not begun |
 
-T00–T02 are committed. T03 is implemented and awaiting user review; T04 has not begun. Each subsequent task still requires its own plan, implementation, tests, and review.
+T00–T03 are committed; T03 is `4c4c15e`. T04 is implemented and awaiting review. Each subsequent task still requires its own plan, implementation, tests, and review.
 
 ## Phase 0 — Agree on the Project
 
@@ -151,7 +152,7 @@ Passwords have no committed defaults. Compose requires private configuration; th
 
 Checks ran on 22 October 2026 with approved access outside the read-only sandbox. The first Compose check found a mounted-shell-script execution failure; initialization was changed to SQL, the backend tests reran, and fresh Compose startup and lifecycle checks then passed. Only isolated verification containers and volumes were removed with approval; the earlier draft database volume and personal configuration were preserved. The earlier draft PostgreSQL container was stopped with approval after verification, freeing port 5432 while preserving its volume. No data deletion or credential rotation was performed on that draft database.
 
-See the [backend guide](backend/README.md) and updated [frontend localhost guide](frontend/README.md) for setup and repeatable checks. There are no live AI calls, keys, paid actions, new cuisine choices, or public catalog endpoints in T03. T03 changes remain uncommitted for review. Suggested commit after review: `Add PostgreSQL catalog persistence and migrations`. Do not advance to T04 automatically.
+See the [backend guide](backend/README.md) and updated [frontend localhost guide](frontend/README.md) for setup and repeatable checks. There are no live AI calls, keys, paid actions, new cuisine choices, or public catalog endpoints in T03. T03 was subsequently committed as `4c4c15e` (`add catalog persistence and seed data`), including the follow-up changes below. T04 was separately authorized through its implementation plan.
 
 #### T03 Single-Account Simplification — 24 October 2026
 
@@ -161,7 +162,7 @@ Applied V1/V2 migrations remain byte-for-byte unchanged. A separate, explicit ow
 
 Verification on 24 October: `./gradlew build` passed with **27 tests, 0 failures, 0 errors, and 0 skipped**. This includes a fresh single-account database and an upgrade from the original two-account schema. The existing local database ownership transfer was then applied with explicit approval. Before/after comparisons confirmed every row in all five catalog tables and Flyway history was unchanged; all six tables and the application database now belong to `meal_planner_app`. Its superuser, database-creation, role-creation, replication, and RLS-bypass flags are all disabled. Personal `.env`, passwords, volumes, and unrelated tables were not modified. `git diff --check` passed. Frontend application code was unchanged, so its previously passing tests were not repeated for this account-only change.
 
-Restart any already running backend using the updated README commands, which remove bootstrap administrator credentials before starting Gradle. The local database upgrade has already been completed; no reset or repeat upgrade is needed on this machine. Changes remain uncommitted; no T04 work is included.
+Restart any already running backend using the updated README commands, which remove bootstrap administrator credentials before starting Gradle. The local database upgrade has already been completed; no reset or repeat upgrade is needed on this machine. These changes were subsequently included in T03 commit `4c4c15e`; no T04 work was included in that commit.
 
 #### Local Startup Convenience — 24 October 2026
 
@@ -177,7 +178,21 @@ Verification: a fresh login shell reported Java/compiler 21; the backend build p
 - **Objective and changes:** introduce explicit DTOs, core preference validation, recipe/ingredient types, consistent error responses, and `GET /api/v1/options`. Return supported cuisines, meal types, diets, time choices, ingredient exclusions, retailers, and generation mode.
 - **Acceptance checks:** options come from agreed configuration/catalog data; unit tests reject unsupported choices and out-of-range values; API tests verify the response shape. Do not expose JPA entities.
 - **Learn:** contracts, DTOs, controller/service boundaries, and business validation.
-- **Suggested commit:** `Add preference rules and options API`.
+- **Suggested commit:** `Add preference validation and options API`.
+
+#### T04 Implementation and Verification — 25 October 2026
+
+Implemented `GET /api/v1/options` using controller → read-only service transaction → catalog repositories and explicit record DTOs. Fixed cuisine/meal/diet choices are defined by shared code/label enums; serving bounds and cooking times are shared with validation. The response includes exact defaults, sample mode, all 20 ingredients including unmapped entries, and both actual retailers, sorted by name then code. Internal IDs, aliases, products, website URLs, and provider configuration are omitted.
+
+Added the Boot-managed validation starter, immutable/deduplicated preference requests, reusable catalog-aware `PreferenceValidator`, recipe-ingredient decimal quantity validation, and quantity units G/KG/ML/L/EACH. Persistence `PackUnit` and applied migrations are unchanged. `any` remains a preference sentinel, not a concrete recipe cuisine. T06 must reuse the validator before suggesting recipes and validate nested recipe values with `@Valid`; no validation endpoint or full recipe response was introduced.
+
+Safe error records carry code, message, a fresh UUID request ID, and field/message pairs. Tests verify 400 invalid preferences, 503 database query/transaction failures, 500 unexpected failures, and preserved MVC statuses/headers. Error bodies omit rejected values and private exception details. The health endpoint still returns its original UP/DOWN contract.
+
+Verification: `./gradlew build` passed on JDK 21 with **45 tests, 0 failures, 0 errors, 0 skipped** (27 existing and 18 added). Testcontainers verified real HTTP options and catalog validation against disposable PostgreSQL 17.11. Fixed choices/defaults, serving boundaries, required/unsupported values, malformed request binding, unknown catalog codes, empty/deduplicated exclusions, and nested positive decimal quantities passed. Mock failures tested safe responses without interrupting the user's database. Existing catalog constraints, ownership upgrade, migrations, and health tests passed. `git diff --check` passed. Gradle/Docker verification needed approved access outside the filesystem sandbox. The documented localhost curl command was not separately run; real HTTP verification used the test application's random port.
+
+The [backend guide](backend/README.md#preference-options-and-validation) documents the contract and `curl --fail-with-body http://localhost:8080/api/v1/options`. T05 will implement search-and-select with removable exclusion tags, filtering the downloaded catalog by name/form. Arbitrary free text, alias search, and server-side ingredient search remain deferred. Exclusions describe unwanted recipe ingredients; owned groceries remain a separate checklist feature, and exclusions do not guarantee allergy protection.
+
+No frontend implementation, new migration, recipe generation, AI calls, or local secret/configuration changes were made. Live generation remains disabled. T04 is uncommitted for review; suggested commit: `Add preference validation and options API`. T05 has not begun.
 
 **Phase exit:** both applications run locally, the browser reaches the backend, PostgreSQL is initialized reproducibly, and the options contract has automated checks. Block further work if required tooling is still unavailable.
 
@@ -186,7 +201,7 @@ Verification: a fresh login shell reported Java/compiler 21; the backend build p
 ### T05 — Deliver the preference form
 
 - **Depends on:** T04.
-- **Objective and changes:** build labeled controls for cuisine, meal type, servings, cooking time, diet, exclusions, and retailer choice using backend options. Add TanStack Query for server state as API-driven features are introduced.
+- **Objective and changes:** build labeled controls for cuisine, meal type, servings, cooking time, diet, exclusions, and retailer choice using backend options. Use search-and-select with removable tags for exclusions: filter the downloaded ingredient catalog by name/form as visitors type and add only confirmed code selections. Add an “All supported retailers” choice for null retailer. Free text, alias search, and server-side ingredient search are deferred. Add TanStack Query for server state as API-driven features are introduced.
 - **Acceptance checks:** American, Irish, Vietnamese, and Any cuisine can be selected; defaults and input bounds match requirements; options-loading failures can be retried; component tests cover important interactions. Meal generation is not part of this task.
 - **Learn:** controlled inputs, accessible forms, and frontend/server validation responsibilities.
 - **Suggested commit:** `Add meal preference form using backend options`.

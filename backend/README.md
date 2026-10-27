@@ -1,6 +1,6 @@
-# Backend — T03
+# Backend — T04
 
-Spring Boot backend with a PostgreSQL catalog, Flyway migrations, JPA repositories, and a database-aware health endpoint. PostgreSQL is now required; no AI key is needed. The initial catalog contains 20 ingredients and 12 reviewed retailer products. See [catalog sources and maintenance](CATALOG.md).
+Spring Boot backend with a PostgreSQL catalog, Flyway migrations, JPA repositories, a database-aware health endpoint, and a preference options API. PostgreSQL is now required; no AI key is needed. The initial catalog contains 20 ingredients and 12 reviewed retailer products. See [catalog sources and maintenance](CATALOG.md).
 
 ## Toolchain
 
@@ -126,6 +126,61 @@ The endpoint runs a bounded `SELECT 1` using the application account. When Postg
 
 To check recovery, keep the backend running, then from the repository root run `docker compose stop postgres`. Repeat the HTTP request; expect 503 and `DOWN` within five seconds. Run `docker compose up -d --wait`, then repeat it; expect 200 and `UP` without restarting the backend. The frontend also supports retry after this outage.
 
+## Preference Options and Validation
+
+With the backend running, check:
+
+```sh
+curl --fail-with-body http://localhost:8080/api/v1/options
+```
+
+`GET /api/v1/options` takes no preference input. It returns explicit record DTOs from controller → read-only transactional service → repositories:
+
+| Field | Contract |
+| --- | --- |
+| `cuisines` | `{code,label}` entries: `any` (Any cuisine), `american` (American), `irish` (Irish), `vietnamese` (Vietnamese) |
+| `mealTypes` | `{code,label}` entries: `breakfast`, `lunch`, `dinner`; title-case labels |
+| `diets` | `{code,label}` entries: `none`, `vegetarian`, `vegan`; title-case labels |
+| `servings` | `{"min":1,"max":8}` |
+| `maxCookingTimeMinutes` | `[15,30,45,60]` |
+| `ingredients` | All catalog ingredients, each with only `code`, `name`, `form`, ordered by name then code |
+| `retailers` | Actual retailers only, each with only `code`, `name`, ordered by name then code |
+| `generationMode` | `"sample"` |
+| `defaults` | The preference object below |
+
+```json
+{
+  "cuisine": "any",
+  "mealType": "dinner",
+  "servings": 2,
+  "maxCookingTimeMinutes": 30,
+  "diet": "none",
+  "excludedIngredientCodes": [],
+  "retailerCode": null
+}
+```
+
+The initial response includes 20 ingredients (including unmapped ingredients) and two retailers, Dunnes Stores and Tesco Ireland. IDs, aliases, products, retailer website URLs, and provider configuration are omitted. `null` retailer means all supported retailers; T05 will add the corresponding UI choice.
+
+`PreferenceRequest` requires all fields except `retailerCode`. `PreferenceValidator.validate` combines Jakarta constraints with allowed time choices and catalog lookups; T06 must call it before suggesting meals. Exact lowercase enum codes are required; blank, unknown, missing, and unsupported values are rejected without substitution. Servings must be 1–8. Exclusions must be a collection, may be empty, and are deduplicated in selection order. Each exclusion must be a known ingredient code; an optional retailer must be a known code. Fixed enum choices, bounds, and cooking times are shared with the options service. `any` is a preference sentinel; future recipes must use a concrete cuisine.
+
+Exclusions mean ingredients unwanted in recipes. They are separate from the later already-owned grocery checklist and do not guarantee allergy protection. T05 will filter the downloaded ingredient list by name/form as visitors type, confirm selections, and show removable tags. Free text, alias search, and server-side search are deferred.
+
+`RecipeIngredient` contains an ingredient code, a required positive decimal quantity, and `QuantityUnit` (`G`, `KG`, `ML`, `L`, `EACH`). Use Jakarta `Validator` directly or `@Valid` on enclosing fields for nested validation. Persistence `PackUnit` is unchanged. The full recipe response belongs to T06. There is no preference-validation endpoint in T04.
+
+API errors contain only `code`, a safe `message`, a fresh server-generated UUID `requestId`, and `fieldErrors` (`field`/`message` pairs):
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| 400 | `INVALID_PREFERENCES` | Invalid preferences or malformed request input |
+| 503 | `DATABASE_UNAVAILABLE` | Catalog query or database transaction acquisition failed |
+| 500 | `INTERNAL_ERROR` | Unexpected application failure |
+| MVC status (e.g. 404, 405, 406, 415) | `REQUEST_ERROR` | Framework request error; status and applicable headers are preserved |
+
+Errors never include rejected values, database/exception details, stack traces, or credentials. Field errors may be empty for malformed input and general failures. The health endpoint retains its separate `UP`/`DOWN` contract.
+
+The tests check exact fixed choices/defaults, bounds, required values, JSON binding, code rejection, known catalog codes, deduplicated exclusions, and nested positive decimal quantities. The real HTTP options test uses Testcontainers PostgreSQL to check catalog counts, ordering, unmapped ingredients, and exact safe fields. Mocked query/transaction/unexpected failures check sanitized responses without stopping the local database. No frontend, AI provider, or database migration is added.
+
 ## Test and Package
 
 From this directory:
@@ -200,10 +255,10 @@ Flyway migrations and normal backend queries both use `meal_planner_app` and the
 
 The Docker bootstrap administrator (`POSTGRES_USER`, default `meal_planner_owner`) initializes PostgreSQL and creates the application owner. Its separate `POSTGRES_PASSWORD` is a Docker setup credential, not a backend credential; the `bootRun` task removes it from the backend environment. Both secrets are still in the private root `.env` because Docker needs them for a fresh volume. This local file is not a strong isolation boundary against arbitrary code running as your OS user. Keep access to Docker restricted as well: Docker administrators can access container configuration and data. Separate production migration execution and secret storage remain T16 considerations.
 
-The only HTTP endpoint is the local health check. Catalog entities are not exposed as API responses. New request validation and endpoint controls belong with the later APIs; AI rate limits and spending bounds remain required before live generation in T13. There are no AI keys, paid API calls, AI tools, or retailer purchases in T03. Treat future model responses and external page content as untrusted data; product verification does not authorize executing content from retailer pages.
+The HTTP endpoints are the local health check and read-only options API. Catalog entities are not exposed as API responses. Preference validation is reusable for T06; AI rate limits and spending bounds remain required before live generation in T13. There are no AI keys, paid API calls, AI tools, or retailer purchases in T03. Treat future model responses and external page content as untrusted data; product verification does not authorize executing content from retailer pages.
 
 Before review/commit, check changed files for secrets and ensure only placeholder configuration is tracked. Avoid shell tracing, full environment dumps, `docker inspect` output containing credentials, and unredacted Compose configuration. Frontend dependency auditing uses `npm audit`; no permanent scanning service or new security package has been introduced.
 
 ## Verification Status
 
-See the [development plan](../DEVELOPMENT_PLAN.md) for actual T03 results, including any remaining blockers. Earlier T01 sandbox failures remain historical records there; they do not describe the later successful JDK 21/Testcontainers runs.
+See the [development plan](../DEVELOPMENT_PLAN.md) for actual T03/T04 results, including any remaining blockers. Earlier T01 sandbox failures remain historical records there; they do not describe the later successful JDK 21/Testcontainers runs.
