@@ -39,10 +39,11 @@ Secret-bearing third-party calls remain backend-only. Validate future API inputs
 | T01 | Committed | Backend committed as `3558ce3`; existing health integration-test report records one passing test |
 | T02 | Committed | Frontend committed as `06df3f1`; 16 component tests and build passed again during T03 |
 | T03 | Committed | `4c4c15e` — catalog persistence, single-account simplification, and local startup convenience; 27 backend tests passed |
-| T04 | Ready for review | Options API, reusable validation, and safe errors implemented; see verification record below; uncommitted |
-| T05–T16 | Planned | Implementation has not begun |
+| T04 | Committed | `fcbc2ba` — preference validation and options API; 45 backend tests passed |
+| T05 | Ready for review | Preferences form uses the T04 options API; frontend tests, build, and lint passed; uncommitted |
+| T06–T16 | Planned | Implementation has not begun |
 
-T00–T03 are committed; T03 is `4c4c15e`. T04 is implemented and awaiting review. Each subsequent task still requires its own plan, implementation, tests, and review.
+T00–T04 are committed; T04 is `fcbc2ba`. T05 is implemented and awaiting review. Each subsequent task still requires its own plan, implementation, tests, and review.
 
 ## Phase 0 — Agree on the Project
 
@@ -192,7 +193,7 @@ Verification: `./gradlew build` passed on JDK 21 with **45 tests, 0 failures, 0 
 
 The [backend guide](backend/README.md#preference-options-and-validation) documents the contract and `curl --fail-with-body http://localhost:8080/api/v1/options`. T05 will implement search-and-select with removable exclusion tags, filtering the downloaded catalog by name/form. Arbitrary free text, alias search, and server-side ingredient search remain deferred. Exclusions describe unwanted recipe ingredients; owned groceries remain a separate checklist feature, and exclusions do not guarantee allergy protection.
 
-No frontend implementation, new migration, recipe generation, AI calls, or local secret/configuration changes were made. Live generation remains disabled. T04 is uncommitted for review; suggested commit: `Add preference validation and options API`. T05 has not begun.
+No frontend implementation, new migration, recipe generation, AI calls, or local secret/configuration changes were made. Live generation remains disabled. T04 was subsequently committed as `fcbc2ba` (`Add preference validation and options API`). T05 had not begun at the time of this record.
 
 **Phase exit:** both applications run locally, the browser reaches the backend, PostgreSQL is initialized reproducibly, and the options contract has automated checks. Block further work if required tooling is still unavailable.
 
@@ -205,6 +206,14 @@ No frontend implementation, new migration, recipe generation, AI calls, or local
 - **Acceptance checks:** American, Irish, Vietnamese, and Any cuisine can be selected; defaults and input bounds match requirements; options-loading failures can be retried; component tests cover important interactions. Meal generation is not part of this task.
 - **Learn:** controlled inputs, accessible forms, and frontend/server validation responsibilities.
 - **Suggested commit:** `Add meal preference form using backend options`.
+
+#### T05 Implementation and Verification — 27 October 2026
+
+Replaced the connection card with an options-driven preferences page. A shared TanStack Query client loads and caches `GET /api/v1/options`; responses are checked before rendering. The form uses backend-provided choices, defaults, and serving bounds for cuisine, meal type, servings, cooking time, diet, and retailer. “All supported retailers” maps to a null preference value.
+
+Ingredient exclusions filter the downloaded catalog by name/form. Visitors add only catalog entries and see them as removable tags; selected entries are hidden from search results. Options errors show a safe message and a manual retry. Preference values are controlled React state, but are not submitted or persisted in T05. Meal generation is not included.
+
+Verification: `npm test` passed with **7 tests, 0 failures**; `npm run build` and `npm run lint` passed; `git diff --check` passed. Tests cover loading, malformed/failing responses and retry, backend defaults and bounds, preference controls, and exclusion filtering/add/remove. Manual localhost visual and keyboard review remains for user review. The implementation adds `@tanstack/react-query` 5.105.0 and updates the npm lockfile; no backend changes or secrets were added. T05 is uncommitted for review. Suggested commit: `Add meal preference form using backend options`.
 
 ### T06 — Deliver sample suggestions end to end
 

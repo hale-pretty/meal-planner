@@ -1,4 +1,4 @@
-import ConnectionCard from './components/ConnectionCard'
+import PreferencesPage from './components/PreferencesPage'
 
 export default function App() {
   return (
@@ -7,10 +7,10 @@ export default function App() {
         <p className="mb-4 text-sm font-semibold uppercase tracking-widest text-emerald-800">Meal Planner</p>
         <h1 className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">A little planning.<br />A better mealtime.</h1>
         <p className="mt-6 text-lg leading-relaxed text-slate-600">
-          A home for meal ideas and your grocery list. First, let’s check the connection.
+          Choose what works for you, and we’ll use it to find meal ideas.
         </p>
       </header>
-      <ConnectionCard />
+      <PreferencesPage />
     </main>
   )
 }
