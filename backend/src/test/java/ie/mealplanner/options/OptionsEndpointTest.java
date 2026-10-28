@@ -44,7 +44,7 @@ class OptionsEndpointTest extends PostgresIntegrationTest {
         assertThat(body.get("defaults")).isEqualTo(mapper.readTree("""
                 {"cuisine":"any","mealType":"dinner","servings":2,"maxCookingTimeMinutes":30,"diet":"none","excludedIngredientCodes":[],"retailerCode":null}
                 """));
-        assertThat(body.get("ingredients").size()).isEqualTo(20);
+        assertThat(body.get("ingredients").size()).isEqualTo(28);
         assertThat(body.get("retailers").size()).isEqualTo(2);
         body.get("ingredients").forEach(item -> assertFields(item, "code", "name", "form"));
         body.get("retailers").forEach(item -> assertFields(item, "code", "name"));

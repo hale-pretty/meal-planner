@@ -1,6 +1,6 @@
 # Initial Catalog and Verification
 
-T03 seeds 20 ingredient identities, 10 aliases, two retailers, 12 real products, and 12 reviewed mappings. These are curated records, not fictional test fixtures. Product pages were reviewed on **22 October 2026** using the retailer's published identity, description, and pack details. This is a dated page review, not a physical inspection, availability guarantee, or allergen certification.
+T03 seeds 20 ingredient identities, 10 aliases, two retailers, 12 real products, and 12 reviewed mappings. T06 adds eight cooking ingredients and twelve sample recipes. Sample recipes are for preference filtering and are not product claims. Product pages were reviewed on **22 October 2026** using retailer-published identity, description, and pack details. This is a dated page review, not a physical inspection, availability guarantee, or allergen certification.
 
 ## Product Sources
 

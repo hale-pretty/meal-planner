@@ -91,12 +91,9 @@ describe('preference options and form', () => {
     expect(screen.getByRole('spinbutton', { name: /Servings/ })).toHaveAttribute('max', '8')
     expect(screen.getByRole('combobox', { name: 'Maximum cooking time' })).toHaveValue('30')
     expect(screen.getByRole('combobox', { name: 'Diet' })).toHaveValue('none')
-    expect(screen.getByRole('combobox', { name: 'Preferred retailer' })).toHaveValue('')
-    expect(screen.getByRole('option', { name: 'All supported retailers' })).toHaveValue('')
-    expect(screen.getByRole('option', { name: 'Tesco Ireland' })).toHaveValue('tesco')
   })
 
-  it('lets visitors select cuisine, meal, cooking time, diet, and retailer options', async () => {
+  it('lets visitors select cuisine, meal, cooking time, and diet options', async () => {
     const user = userEvent.setup()
     fetchMock.mockResolvedValue(optionsResponse())
     renderPage()
@@ -107,14 +104,12 @@ describe('preference options and form', () => {
     await user.type(screen.getByRole('spinbutton', { name: /Servings/ }), '8')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Maximum cooking time' }), '45')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Diet' }), 'vegan')
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Preferred retailer' }), 'tesco')
 
     expect(screen.getByRole('combobox', { name: 'Cuisine' })).toHaveValue('vietnamese')
     expect(screen.getByRole('combobox', { name: 'Meal type' })).toHaveValue('lunch')
     expect(screen.getByRole('spinbutton', { name: /Servings/ })).toHaveValue(8)
     expect(screen.getByRole('combobox', { name: 'Maximum cooking time' })).toHaveValue('45')
     expect(screen.getByRole('combobox', { name: 'Diet' })).toHaveValue('vegan')
-    expect(screen.getByRole('combobox', { name: 'Preferred retailer' })).toHaveValue('tesco')
   })
 
   it('searches ingredient name and form, adds selected codes once, and removes tags', async () => {
@@ -163,5 +158,55 @@ describe('preference options and form', () => {
     fetchMock.mockResolvedValue(optionsResponse({ cuisines: [] }))
     renderPage()
     expect(await screen.findByRole('alert')).toHaveTextContent('couldn’t load the available choices')
+  })
+
+  it('submits preferences and renders sample suggestions', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockResolvedValueOnce(optionsResponse()).mockResolvedValueOnce(new Response(JSON.stringify({
+      generationMode: 'sample', message: 'Here are sample meal ideas.', recipes: [{
+        code: 'irish-potato-soup', name: 'Irish potato soup', description: 'A warming soup.', cuisine: 'irish', mealType: 'dinner',
+        servings: 2, cookingTimeMinutes: 45, dietLabels: ['vegetarian'], ingredients: [], steps: [],
+      }],
+    }), { status: 200 }))
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Find meal ideas' }))
+    expect(await screen.findByText('Irish potato soup')).toBeInTheDocument()
+    expect(screen.getByText('Sample recipe')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/v1/meal-suggestions', expect.objectContaining({ method: 'POST' }))
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({ cuisine: 'any', mealType: 'dinner', servings: 2 })
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).not.toHaveProperty('retailerCode')
+  })
+
+  it('keeps successful suggestions and form values after a later request fails', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockResolvedValueOnce(optionsResponse()).mockResolvedValueOnce(new Response(JSON.stringify({
+      generationMode: 'sample', message: 'Sample ideas.', recipes: [{ code: 'x', name: 'First idea', description: 'A meal.', cuisine: 'irish', mealType: 'dinner', servings: 2, cookingTimeMinutes: 20, dietLabels: [], ingredients: [], steps: [] }],
+    }), { status: 200 })).mockRejectedValueOnce(new TypeError('offline'))
+    renderPage()
+    const cuisine = await screen.findByRole('combobox', { name: 'Cuisine' })
+    await user.selectOptions(cuisine, 'irish')
+    await user.click(screen.getByRole('button', { name: 'Find meal ideas' }))
+    expect(await screen.findByText('First idea')).toBeInTheDocument()
+    await user.selectOptions(cuisine, 'vietnamese')
+    await user.click(screen.getByRole('button', { name: 'Find meal ideas' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('previous suggestions are still here')
+    expect(cuisine).toHaveValue('vietnamese')
+    expect(screen.getByText('First idea')).toBeInTheDocument()
+    expect(screen.getByText(/earlier preferences/)).toBeInTheDocument()
+  })
+
+  it('shows loading and empty result states, then replaces them on regeneration', async () => {
+    const user = userEvent.setup()
+    let release: ((response: Response) => void) | undefined
+    fetchMock.mockResolvedValueOnce(optionsResponse()).mockReturnValueOnce(new Promise((resolve) => { release = resolve }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ generationMode: 'sample', message: 'Fresh ideas.', recipes: [{ code: 'next', name: 'New idea', description: 'Another meal.', cuisine: 'american', mealType: 'dinner', servings: 2, cookingTimeMinutes: 20, dietLabels: [], ingredients: [], steps: [] }] }), { status: 200 }))
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Find meal ideas' }))
+    expect(screen.getByRole('status')).toHaveTextContent('Finding sample meal ideas')
+    release?.(new Response(JSON.stringify({ generationMode: 'sample', message: 'No sample meals match.', recipes: [] }), { status: 200 }))
+    expect(await screen.findByText('No meals found. Try changing your preferences.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Find meal ideas' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    expect(await screen.findByText('New idea')).toBeInTheDocument()
   })
 })

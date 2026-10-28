@@ -29,12 +29,12 @@ class CatalogPersistenceTest extends PostgresIntegrationTest {
 
     @Test
     void freshMigrationsCreateTheReviewedCatalog() {
-        assertThat(ingredients.count()).isEqualTo(20);
+        assertThat(ingredients.count()).isEqualTo(28);
         assertThat(aliases.count()).isEqualTo(10);
         assertThat(retailers.count()).isEqualTo(2);
         assertThat(products.count()).isEqualTo(12);
         assertThat(mappings.count()).isEqualTo(12);
-        assertThat(flyway.info().applied()).hasSize(2);
+        assertThat(flyway.info().applied()).hasSize(3);
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(ingredients.findByCode("tomato-fresh").orElseThrow().getId())
                 .isNotEqualTo(ingredients.findByCode("tomato-canned").orElseThrow().getId());
@@ -82,7 +82,7 @@ class CatalogPersistenceTest extends PostgresIntegrationTest {
     @Test
     void migratingAnExistingDatabaseDoesNotDuplicateSeedRows() {
         assertThat(flyway.migrate().migrationsExecuted).isZero();
-        assertThat(ingredients.count()).isEqualTo(20);
+        assertThat(ingredients.count()).isEqualTo(28);
         assertThat(products.count()).isEqualTo(12);
         assertThat(mappings.count()).isEqualTo(12);
     }

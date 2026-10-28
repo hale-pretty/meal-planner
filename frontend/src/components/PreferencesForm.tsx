@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { OptionsResponse } from '../api/options'
+import { fetchMealSuggestions, type MealPreferences, type MealSuggestionsResponse } from '../api/mealSuggestions'
 
 type PreferencesFormProps = { options: OptionsResponse }
 
@@ -10,9 +11,12 @@ export default function PreferencesForm({ options }: PreferencesFormProps) {
   const [servings, setServings] = useState(String(options.defaults.servings))
   const [cookingTime, setCookingTime] = useState(String(options.defaults.maxCookingTimeMinutes))
   const [diet, setDiet] = useState(options.defaults.diet)
-  const [retailerCode, setRetailerCode] = useState(options.defaults.retailerCode ?? '')
   const [excludedCodes, setExcludedCodes] = useState(options.defaults.excludedIngredientCodes)
   const [ingredientSearch, setIngredientSearch] = useState('')
+  const [suggestions, setSuggestions] = useState<MealSuggestionsResponse | null>(null)
+  const [suggestionsPreferences, setSuggestionsPreferences] = useState<MealPreferences | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [requestError, setRequestError] = useState(false)
 
   const selectedIngredients = options.ingredients.filter((ingredient) => excludedCodes.includes(ingredient.code))
   const search = ingredientSearch.trim().toLocaleLowerCase()
@@ -31,8 +35,15 @@ export default function PreferencesForm({ options }: PreferencesFormProps) {
     setIngredientSearch('')
   }
 
-  function preventSubmit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const preferences: MealPreferences = { cuisine, mealType, servings: Number(servings),
+      maxCookingTimeMinutes: Number(cookingTime), diet, excludedIngredientCodes: excludedCodes }
+    setLoading(true); setRequestError(false)
+    try {
+      const response = await fetchMealSuggestions(preferences)
+      setSuggestions(response); setSuggestionsPreferences(preferences)
+    } catch { setRequestError(true) } finally { setLoading(false) }
   }
 
   return (
@@ -40,7 +51,7 @@ export default function PreferencesForm({ options }: PreferencesFormProps) {
       <h2 id="preferences-heading" className="text-2xl font-semibold text-slate-950">Your meal preferences</h2>
       <p className="mt-2 leading-relaxed text-slate-600">Choose a few details to shape your meal ideas.</p>
 
-      <form onSubmit={preventSubmit} className="mt-8 space-y-6">
+      <form onSubmit={submit} className="mt-8 space-y-6">
         <div className="grid gap-6 sm:grid-cols-2">
           <label className="block font-medium text-slate-800">
             Cuisine
@@ -82,14 +93,6 @@ export default function PreferencesForm({ options }: PreferencesFormProps) {
             </select>
           </label>
 
-          <label className="block font-medium text-slate-800">
-            Preferred retailer
-            <select value={retailerCode} onChange={(event) => setRetailerCode(event.target.value)}
-              className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">
-              <option value="">All supported retailers</option>
-              {options.retailers.map((retailer) => <option key={retailer.code} value={retailer.code}>{retailer.name}</option>)}
-            </select>
-          </label>
         </div>
 
         <div>
@@ -134,6 +137,26 @@ export default function PreferencesForm({ options }: PreferencesFormProps) {
             </ul>
           )}
         </div>
+        <button type="submit" disabled={loading}
+          className="rounded-lg bg-emerald-800 px-5 py-3 font-semibold text-white hover:bg-emerald-900 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-800">
+          {loading ? 'Finding meal ideas…' : 'Find meal ideas'}
+        </button>
+        {loading && <p role="status" className="text-slate-600">Finding sample meal ideas…</p>}
+        {requestError && <p role="alert" className="text-red-800">We couldn’t load meal ideas. Your preferences{suggestions ? ' and previous suggestions are still here' : ' are unchanged'}; please try again.</p>}
+        {suggestions && <section aria-labelledby="suggestions-heading" className="border-t border-slate-200 pt-6">
+          <h3 id="suggestions-heading" className="text-xl font-semibold text-slate-950">Sample meal ideas</h3>
+          {suggestionsPreferences && JSON.stringify({cuisine,mealType,servings:Number(servings),maxCookingTimeMinutes:Number(cookingTime),diet,excludedIngredientCodes:excludedCodes}) !== JSON.stringify(suggestionsPreferences)
+            && <p className="mt-2 text-sm text-amber-800">These suggestions reflect your earlier preferences. Find meal ideas again to refresh them.</p>}
+          <p className="mt-2 text-slate-600">{suggestions.message}</p>
+          {suggestions.recipes.length === 0 ? <p role="status" className="mt-4 rounded-lg bg-slate-50 p-4 text-slate-700">No meals found. Try changing your preferences.</p>
+            : <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{suggestions.recipes.map((recipe) => <li key={recipe.code} className="rounded-xl border border-slate-200 p-5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Sample recipe</span>
+              <h4 className="mt-2 text-lg font-semibold text-slate-950">{recipe.name}</h4>
+              <p className="mt-2 text-sm text-slate-600">{recipe.description}</p>
+              <p className="mt-3 text-sm text-slate-700">{recipe.cuisine} · {recipe.mealType} · {recipe.cookingTimeMinutes} min · {recipe.servings} servings</p>
+              {recipe.dietLabels.length > 0 && <p className="mt-1 text-sm text-slate-600">{recipe.dietLabels.join(', ')}</p>}
+            </li>)}</ul>}
+        </section>}
       </form>
     </section>
   )

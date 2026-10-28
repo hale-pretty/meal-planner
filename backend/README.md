@@ -1,6 +1,6 @@
 # Backend — T04
 
-Spring Boot backend with a PostgreSQL catalog, Flyway migrations, JPA repositories, a database-aware health endpoint, and a preference options API. PostgreSQL is now required; no AI key is needed. The initial catalog contains 20 ingredients and 12 reviewed retailer products. See [catalog sources and maintenance](CATALOG.md).
+Spring Boot backend with a PostgreSQL catalog, Flyway migrations, JPA repositories, a database-aware health endpoint, and sample meal suggestions. PostgreSQL is required; no AI key is needed. The catalog contains 28 ingredients, 12 sample recipes, and 12 reviewed retailer products. See [catalog sources and maintenance](CATALOG.md).
 
 ## Toolchain
 
@@ -160,13 +160,13 @@ curl --fail-with-body http://localhost:8080/api/v1/options
 }
 ```
 
-The initial response includes 20 ingredients (including unmapped ingredients) and two retailers, Dunnes Stores and Tesco Ireland. IDs, aliases, products, retailer website URLs, and provider configuration are omitted. `null` retailer means all supported retailers; T05 will add the corresponding UI choice.
+The response includes all 28 ingredients (including unmapped ingredients) and two retailers, Dunnes Stores and Tesco Ireland. IDs, aliases, products, retailer website URLs, and provider configuration are omitted. `null` retailer means all supported retailers.
 
-`PreferenceRequest` requires all fields except `retailerCode`. `PreferenceValidator.validate` combines Jakarta constraints with allowed time choices and catalog lookups; T06 must call it before suggesting meals. Exact lowercase enum codes are required; blank, unknown, missing, and unsupported values are rejected without substitution. Servings must be 1–8. Exclusions must be a collection, may be empty, and are deduplicated in selection order. Each exclusion must be a known ingredient code; an optional retailer must be a known code. Fixed enum choices, bounds, and cooking times are shared with the options service. `any` is a preference sentinel; future recipes must use a concrete cuisine.
+`PreferenceRequest` requires all fields except `retailerCode`. `PreferenceValidator.validate` combines Jakarta constraints with allowed time choices and catalog lookups. The T06 suggestion service calls it before filtering recipes. Exact lowercase enum codes are required; blank, unknown, missing, and unsupported values are rejected without substitution. Servings must be 1–8. Exclusions must be a collection, may be empty, and are deduplicated in selection order. Each exclusion must be a known ingredient code; an optional retailer must be a known code. Fixed enum choices, bounds, and cooking times are shared with the options service. `any` is a preference sentinel; recipes use a concrete cuisine.
 
 Exclusions mean ingredients unwanted in recipes. They are separate from the later already-owned grocery checklist and do not guarantee allergy protection. T05 will filter the downloaded ingredient list by name/form as visitors type, confirm selections, and show removable tags. Free text, alias search, and server-side search are deferred.
 
-`RecipeIngredient` contains an ingredient code, a required positive decimal quantity, and `QuantityUnit` (`G`, `KG`, `ML`, `L`, `EACH`). Use Jakarta `Validator` directly or `@Valid` on enclosing fields for nested validation. Persistence `PackUnit` is unchanged. The full recipe response belongs to T06. There is no preference-validation endpoint in T04.
+`RecipeIngredient` contains an ingredient code, a required positive decimal quantity, and `QuantityUnit` (`G`, `KG`, `ML`, `L`, `EACH`). Use Jakarta `Validator` directly or `@Valid` on enclosing fields for nested validation. Persistence `PackUnit` is unchanged. `POST /api/v1/meal-suggestions` accepts meal preferences (cuisine, meal type, servings, cooking-time limit, diet, and exclusions) and returns `{generationMode,message,recipes}`. It filters the Flyway-seeded sample recipes by meal, cuisine (`any` matches all), cooking time, diet, and exclusions. Retailer selection is deferred until a recipe is selected for shopping, where product mappings can be applied to that recipe's ingredients. The endpoint returns up to three recipes in stable code order, with catalog-backed ingredients scaled to requested servings using decimal arithmetic, plus numbered steps. Empty matches include an explanatory message. Every response uses `generationMode: "sample"`; no AI provider is called.
 
 API errors contain only `code`, a safe `message`, a fresh server-generated UUID `requestId`, and `fieldErrors` (`field`/`message` pairs):
 
@@ -179,7 +179,7 @@ API errors contain only `code`, a safe `message`, a fresh server-generated UUID 
 
 Errors never include rejected values, database/exception details, stack traces, or credentials. Field errors may be empty for malformed input and general failures. The health endpoint retains its separate `UP`/`DOWN` contract.
 
-The tests check exact fixed choices/defaults, bounds, required values, JSON binding, code rejection, known catalog codes, deduplicated exclusions, and nested positive decimal quantities. The real HTTP options test uses Testcontainers PostgreSQL to check catalog counts, ordering, unmapped ingredients, and exact safe fields. Mocked query/transaction/unexpected failures check sanitized responses without stopping the local database. No frontend, AI provider, or database migration is added.
+Tests cover preferences validation and the HTTP suggestion contract against migrated Testcontainers PostgreSQL, including filters, diet compatibility, exclusions, `any`, scaling, stable limits/order, and empty results.
 
 ## Test and Package
 
@@ -233,7 +233,8 @@ docker compose exec postgres sh -c 'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_
 Useful read-only queries:
 
 ```sql
-SELECT count(*) FROM ingredient;                  -- 20
+SELECT count(*) FROM ingredient;                  -- 28
+SELECT count(*) FROM recipe;                      -- 12
 SELECT count(*) FROM product;                     -- 12
 SELECT count(*) FROM ingredient_product_mapping;  -- 12
 SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;
@@ -255,7 +256,7 @@ Flyway migrations and normal backend queries both use `meal_planner_app` and the
 
 The Docker bootstrap administrator (`POSTGRES_USER`, default `meal_planner_owner`) initializes PostgreSQL and creates the application owner. Its separate `POSTGRES_PASSWORD` is a Docker setup credential, not a backend credential; the `bootRun` task removes it from the backend environment. Both secrets are still in the private root `.env` because Docker needs them for a fresh volume. This local file is not a strong isolation boundary against arbitrary code running as your OS user. Keep access to Docker restricted as well: Docker administrators can access container configuration and data. Separate production migration execution and secret storage remain T16 considerations.
 
-The HTTP endpoints are the local health check and read-only options API. Catalog entities are not exposed as API responses. Preference validation is reusable for T06; AI rate limits and spending bounds remain required before live generation in T13. There are no AI keys, paid API calls, AI tools, or retailer purchases in T03. Treat future model responses and external page content as untrusted data; product verification does not authorize executing content from retailer pages.
+The HTTP endpoints include health, options, and sample meal suggestions. Catalog entities are not exposed as API responses. AI rate limits and spending bounds remain required before live generation in T13. There are no AI keys, paid API calls, AI tools, or retailer purchases in T06. Treat future model responses and external page content as untrusted data; product verification does not authorize executing content from retailer pages.
 
 Before review/commit, check changed files for secrets and ensure only placeholder configuration is tracked. Avoid shell tracing, full environment dumps, `docker inspect` output containing credentials, and unredacted Compose configuration. Frontend dependency auditing uses `npm audit`; no permanent scanning service or new security package has been introduced.
 

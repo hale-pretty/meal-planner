@@ -1,6 +1,6 @@
 # Frontend — T05
 
-React and TypeScript frontend for Meal Planner. It loads supported choices from the backend and lets visitors enter meal preferences. Meal generation and browser persistence are later tasks.
+React and TypeScript frontend for Meal Planner. It loads supported choices, submits preferences for sample meal suggestions, and displays summary cards. Suggestions and preferences are not saved across reloads.
 
 ## Prerequisites and Setup
 
@@ -49,12 +49,13 @@ PostgreSQL is required from T03 onward. No AI key is needed. Keep database passw
 ## Check the Preferences Form in Your Browser
 
 1. With both applications running, open or refresh `http://localhost:5173`. The page loads supported preferences from `GET /api/v1/options`, then shows the form with backend-provided defaults.
-2. Select American, Irish, Vietnamese, and Any cuisine; try the meal, serving, cooking-time, diet, and retailer controls. “All supported retailers” is sent as a null retailer preference in a later task.
+2. Select American, Irish, Vietnamese, and Any cuisine; try the meal, serving, and cooking-time controls. Retailer selection belongs after choosing a dish, when its shopping list is prepared.
 3. Search exclusions by ingredient name or form. Choose a result to add it as a removable tag. A selected ingredient no longer appears in the results until removed.
 4. Stop Spring Boot with Ctrl+C in terminal 1. Refresh the page; expect a useful options-loading error and **Retry loading options** button. Restart Spring Boot and retry.
-5. Resize the browser or use its mobile device toolbar. Use Tab to reach each input, result, tag removal button, and retry button; focus should be visible.
+5. Select **Find meal ideas** to request up to three sample cards. Try exclusions and diets that return no matches. If a request fails, the form and last successful suggestions remain; changing preferences marks those suggestions as based on earlier preferences.
+6. Resize the browser or use its mobile device toolbar. Use Tab to reach each input, result, tag removal button, and action; focus should be visible.
 
-T05 collects preferences only. It does not request meal suggestions or save choices across reloads. Those are later tasks.
+Suggestions use only the seeded sample catalog. No AI provider is called and choices are not saved across reloads.
 
 ## Automated Checks
 
@@ -68,7 +69,7 @@ Run these from `frontend/`:
 | `npm run build` | Check strict TypeScript types and create production assets |
 | `npm run lint` | Run Oxlint |
 
-Component tests use Vitest, React Testing Library, jest-dom, and jsdom. They mock `fetch`, so neither server needs to be running. They cover options loading and errors, retry, malformed response handling, backend-provided defaults and bounds, preference selection, and searching, adding, and removing ingredient exclusions.
+Component tests use Vitest, React Testing Library, jest-dom, and jsdom. They mock `fetch`, so neither server needs to be running. They cover options loading and errors, retry, malformed response handling, backend-provided defaults and bounds, preference selection, ingredient exclusions, suggestions submission and cards, loading/empty/error states, preserved results, and regeneration.
 
 A production build verifies that assets compile. Production API hosting is part of T16; the development proxy is not packaged into `dist/`.
 
@@ -76,9 +77,9 @@ A production build verifies that assets compile. Production API hosting is part 
 
 - `src/main.tsx` mounts React with StrictMode and the shared TanStack Query client.
 - `src/App.tsx` renders the page header and preferences feature.
-- `src/api/options.ts` fetches `/api/v1/options` and checks the response shape before the form uses it.
+- `src/api/options.ts` fetches `/api/v1/options`; `src/api/mealSuggestions.ts` submits preferences and checks the sample response envelope.
 - `src/components/PreferencesPage.tsx` uses TanStack Query to load and cache options, show loading/error states, and let visitors retry.
-- `src/components/PreferencesForm.tsx` owns the controlled form values and filters the downloaded ingredient catalog by name/form. Exclusions store selected catalog codes; the UI shows removable tags.
+- `src/components/PreferencesForm.tsx` owns controlled form values, filters the downloaded ingredient catalog by name/form, submits suggestions, and retains the previous successful response after a request failure.
 - `src/index.css` imports Tailwind. `vite.config.ts` registers its Vite plugin, following the [official Tailwind setup](https://tailwindcss.com/docs/installation/using-vite).
 - `vite.config.ts` also sets port 5173, the API proxy, and the jsdom test environment. `src/test/setup.ts` installs DOM assertions and cleans up after tests.
 
