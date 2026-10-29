@@ -16,7 +16,7 @@ const suggestions: MealSuggestionsResponse = {
 }
 
 function renderDetails(code: string, value: MealSuggestionsResponse | null = suggestions) {
-  return render(<MealPlanContext.Provider value={{ suggestions: value, setSuggestions: () => undefined }}>
+  return render(<MealPlanContext.Provider value={{ suggestions: value, setSuggestions: () => undefined, selectedRecipe: null, setSelectedRecipe: () => undefined, servings: null, setServings: () => undefined, groceries: [], setGroceries: () => undefined }}>
     <MemoryRouter initialEntries={[`/recipes/${code}`]}>
       <Routes><Route path="/recipes/:recipeCode" element={<RecipeDetailsPage />} /><Route path="/" element={<p>Meal ideas</p>} /></Routes>
     </MemoryRouter>
