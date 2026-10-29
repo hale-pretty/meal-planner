@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { OptionsResponse } from '../api/options'
-import { fetchMealSuggestions, type MealPreferences, type MealSuggestionsResponse } from '../api/mealSuggestions'
+import { fetchMealSuggestions, type MealPreferences } from '../api/mealSuggestions'
+import { Link } from 'react-router'
+import { useMealPlan } from '../useMealPlan'
 
 type PreferencesFormProps = { options: OptionsResponse }
 
 export default function PreferencesForm({ options }: PreferencesFormProps) {
+  const { suggestions, setSuggestions } = useMealPlan()
   const [cuisine, setCuisine] = useState(options.defaults.cuisine)
   const [mealType, setMealType] = useState(options.defaults.mealType)
   const [servings, setServings] = useState(String(options.defaults.servings))
@@ -13,7 +16,6 @@ export default function PreferencesForm({ options }: PreferencesFormProps) {
   const [diet, setDiet] = useState(options.defaults.diet)
   const [excludedCodes, setExcludedCodes] = useState(options.defaults.excludedIngredientCodes)
   const [ingredientSearch, setIngredientSearch] = useState('')
-  const [suggestions, setSuggestions] = useState<MealSuggestionsResponse | null>(null)
   const [suggestionsPreferences, setSuggestionsPreferences] = useState<MealPreferences | null>(null)
   const [loading, setLoading] = useState(false)
   const [requestError, setRequestError] = useState(false)
@@ -155,6 +157,7 @@ export default function PreferencesForm({ options }: PreferencesFormProps) {
               <p className="mt-2 text-sm text-slate-600">{recipe.description}</p>
               <p className="mt-3 text-sm text-slate-700">{recipe.cuisine} · {recipe.mealType} · {recipe.cookingTimeMinutes} min · {recipe.servings} servings</p>
               {recipe.dietLabels.length > 0 && <p className="mt-1 text-sm text-slate-600">{recipe.dietLabels.join(', ')}</p>}
+              <Link to={`/recipes/${encodeURIComponent(recipe.code)}`} className="mt-4 inline-block font-semibold text-emerald-800 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">View recipe: {recipe.name}</Link>
             </li>)}</ul>}
         </section>}
       </form>

@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OptionsResponse } from '../api/options'
 import PreferencesPage from './PreferencesPage'
+import { MealPlanProvider } from '../MealPlanProvider'
 
 const fetchMock = vi.fn<typeof fetch>()
 
@@ -58,7 +60,7 @@ function renderPage() {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <PreferencesPage />
+      <MemoryRouter><MealPlanProvider><PreferencesPage /></MealPlanProvider></MemoryRouter>
     </QueryClientProvider>,
   )
 }
